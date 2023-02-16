@@ -1,0 +1,103 @@
+##Utilização Prática no Cenário de Microsserviços
+
+Programa:
+Sequeler (Fedora)
+*Adcionar um novo banco de dados
+Tipo: MySQL
+host, nome do banco de dados, usuário, senha e porta
+
+*Consultar
+
+CREATE TABLE dados (
+    AlunoID int,
+    Nome varchar(50),
+    Sobrenome varchar(50),
+    Endereco varchar(150),
+    Cidade varchar(50),
+    Host varchar(50)
+);
+
+*Exercutar consulta
+
+Comando-> Select * FROM dados
+
+#Criando uma aplicação
+
+>cd /var/lib/docker/volumes
+>cd _data
+---------------------------
+>cd app
+>cd _data
+>nano index.php
+
+https://github.com/denilsonbonatti/toshiro-shibakita
+
+>docker run --name web-server -dt -p 80:80 --mount type=volume,src=app,dst=/app/ webdevops/php-apache:alpine-php7
+
+loader.io (site estressar o container)
+
+#Iniciando um cluster swarm
+
+>docker ps
+>docker rm --force web-server
+>docker swarm init
+
+Realizar o acesso a outro(s) servidor(res)
+
+>docker swarm join --token ****************** 000.00.0.00:2377
+
+#Criando um serviço no cluster
+
+>docker node ls
+>docker service create --name web-server --replicas 10 -dt -p 80:80 --mount type=volume,src=app,dst=/app/ webdevops/php-apache:alpine-php7
+>docker service ps web-server
+
+#Replicando um volume dentro do cluster
+
+/var/lib/docker/volumes/app/_data> apt-get install nfs-server (no servidor principal)
+
+>nano /etc/exports
+/var/lib/docker/volumes/app/_data *(rw,sync,subtree_check)
+>exportfs -ar
+
+/var/lib/docker/volumes/app/_data> apt-get install nfs-common (servidor cliente)
+>mount -o v3 000.00.0.00:var/lib/docker/volumes/app/_data /var/lib/docker/volumes/app/_data
+
+#Proxy para replicar
+>cd /
+>mkdir /proxy
+>cd /proxy
+>nano nginx.conf
+
+http {
+   
+    upstream all {
+        server 172.31.0.37:80;
+        server 172.31.0.151:80;
+        server 172.31.0.149:80;
+    }
+
+    server {
+         listen 4500;
+         location / {
+              proxy_pass http://all/;
+         }
+    }
+
+}
+
+
+events { }
+
+------------------------------
+
+>nano dockerfile
+
+FROM nginx
+COPY nginx.conf /etc/nginx/nginx.conf
+
+-------------------------------
+
+>docker build -t proxy-app .
+>docker image ls
+>docker container run --name my-proxy-app -dti -p 4500:4500 proxy-app
